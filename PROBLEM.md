@@ -11,7 +11,7 @@ The app runs fully offline against a simulated backend
 (`lib/service/fake_api_service.dart`) with realistic latency and intermittent
 failures — no API keys or accounts needed. See `README.md` for setup.
 
-Expected effort: **a weekend (~12–16 hours)**. You do not need to finish
+Deadline: One week. You do not need to finish
 everything — see [How we grade](#how-we-grade).
 
 ---
@@ -19,24 +19,26 @@ everything — see [How we grade](#how-we-grade).
 ## Ground rules
 
 1. **AI tools are allowed and expected.** Use Cursor, Copilot, Claude, ChatGPT,
-   whatever you like. We care about how *well* you use them. You own every
+   whatever you like. We care about how _well_ you use them. You own every
    line you submit: in the follow-up interview we will pick lines from your
    diff and ask you to explain them.
 2. **Do not modify** `lib/service/fake_api_service.dart` or anything in
    `assets/data/`. That is "the backend" — you can read it to learn the API
    contract, but pretend you can't deploy changes to it.
 3. **Do not upgrade** Flutter or any package. Toolchain is pinned:
-   **Flutter 3.27.0**, **Java 17** (for Android builds).
+   **Flutter 3.27.0**, **Java 17** (for Android builds). If you are using a physical
+   iPhone device with iOS 26 for debugging, you can use flutter version **3.38.10** to
+   support debug run.
 4. **Commit as you go.** One logical change per commit, with messages that
    tell the story ("Fix X because Y", not "wip"). Your commit history is part
-   of the assessment.
+   of the assessment. Add ticket name prefix in your commit message, e.g "[RES-101] fixed logic"
 5. Note roughly how long you spent, honestly, in `solutions.md`.
 
 ---
 
 ## Part A — Bug tickets
 
-These are real tickets from our QA team, written the way we receive them:
+These are real tickets from our team, written the way we receive them:
 symptoms only. For each one you take on: **reproduce it, find the root cause,
 fix it properly, and write up the diagnosis** in `solutions.md`.
 
@@ -45,30 +47,34 @@ try/catch, forcing a rebuild, etc.) scores worse than a correct diagnosis
 with no fix at all.
 
 ### RES-101 · Search shows results for the wrong query
+
 Type a word quickly in search — for example "sushi", letter by letter.
 Frequently the final results do not match what is in the text box: correct
 results appear briefly, then get replaced by results for an earlier, shorter
-query. QA reproduces this most attempts. Users report "search is drunk".
+query. Team reproduces this most attempts. Users report "search is drunk".
 
 ### RES-102 · Crash after leaving My orders
+
 Open **My orders** while there is an order with an upcoming pickup, then
 navigate back. Within a couple of seconds the app crashes in debug builds with
-`setState() called after dispose()`. This is currently our second most
-frequent crash in production.
+`setState() called after dispose()`.
 
 ### RES-103 · Requests pile up the longer you browse
+
 After opening several deal pages, every tap on "Add to bag" triggers a burst
-of `GET /deals/:id` requests — one for *each deal viewed earlier in the
-session*, even for screens that were closed long ago. The app gets slower
+of `GET /deals/:id` requests — one for _each deal viewed earlier in the
+session_, even for screens that were closed long ago. The app gets slower
 and chattier the longer the session. Watch the console logs while browsing
 to see it (every simulated request is logged).
 
 ### RES-104 · Duplicate deals in the home feed
+
 Scroll to the bottom of the home feed so the next page starts loading, then
 quickly pull down to refresh while it is still loading. Intermittently the
 feed ends up with duplicated cards, or more items than the catalog contains.
 
 ### RES-105 · Home feed is janky and memory keeps climbing
+
 On mid-range Android devices the home feed drops frames noticeably while
 scrolling, and memory grows the further you scroll until the OS kills the app.
 DevTools shows the entire feed rebuilding continuously during scroll, and the
@@ -77,6 +83,7 @@ you to find and explain them, with before/after evidence from DevTools
 (screenshots or numbers in `solutions.md`).
 
 ### RES-106 · Wrong pickup times; "Pickup today" filter misses deals
+
 Multiple user complaints: a bakery that opens **06:00–09:30** shows
 "Pick up 23:00 – 02:30" on its cards, and several stores with pickup slots
 today never appear when the **Pickup today** filter is on. Some users showed
@@ -85,12 +92,14 @@ points out the API sends standard ISO-8601 UTC instants, like every API we
 integrate with.
 
 ### RES-107 · Deep link opens to a crash
+
 Marketing sends push notifications that deep-link to deals, e.g.
 `rescu://open/deal?id=42&source=push`. Opening such a link crashes with
 `type 'Null' is not a subtype of type 'DealModel'`. Opening the same deal
 from the home feed works fine.
 
 Repro options:
+
 - In-app: Home → overflow menu (⋮) → **Simulate deep link…**
 - Android: `adb shell am start -a android.intent.action.VIEW -d "rescu://open/deal?id=42&source=push" dev.rescu.rescu`
 
@@ -106,12 +115,14 @@ Same expectations as production code: correct, performant, and reviewed by
 you before submission.
 
 ### F-1 · Live flash-sale countdowns
+
 Flash deals (`flashSaleEndsAt` on the model) currently show a static
 "Ends soon" badge. Replace it with a **live countdown** (`mm:ss`, or
 `hh:mm:ss` above an hour) everywhere the deal appears: flash rail, home feed
 cards, and the details screen.
 
 Requirements:
+
 - When a countdown reaches zero: the card switches to a disabled "Expired"
   state, the deal can no longer be added to the bag, and if it is already in
   the bag it is removed with a visible notice.
@@ -121,6 +132,7 @@ Requirements:
   list.
 
 ### F-2 · Impression tracking
+
 Product wants view analytics on deal cards. Using `AnalyticsService`:
 
 - Log a `deal_impression` event when a deal card has been **≥50% visible for
@@ -139,6 +151,7 @@ Verify your events on the **Analytics debug** screen (Home → ⋮ → Analytics
 debug).
 
 ### F-3 · Stock reservations with optimistic UI
+
 Right now the bag is purely local, so two users can "add" the last bag and
 one of them finds out only at pickup. The backend already exposes
 reservations (see `FakeApiService.reserveDeal` / `releaseReservation`, and
@@ -146,6 +159,7 @@ reservations (see `FakeApiService.reserveDeal` / `releaseReservation`, and
 intermittently fails with a 409 when stock is contended.
 
 Build reservation support into the bag:
+
 - Adding to the bag reserves stock. The UI must respond **optimistically**
   (instant feedback), then reconcile: if the reservation fails, the item is
   rolled back out of the bag with a clear, non-technical message.
@@ -172,8 +186,7 @@ Add a **`solutions.md`** at the repo root containing:
 2. **AI usage log:**
    - Which tools you used and for what.
    - At least **two concrete examples where an AI suggestion was wrong or
-     misleading**, how you caught it, and what you did instead. (If your AI
-     was never wrong this weekend, you weren't checking.)
+     misleading**, how you caught it, and what you did instead.
 3. **Design questions** (short answers, a paragraph each):
    - Q1: In this codebase, what is the difference between a `GetxController`'s
      lifecycle and a widget `State`'s lifecycle? Name one bug from Part A
@@ -205,4 +218,4 @@ Add a **`solutions.md`** at the repo root containing:
 2. Make sure `solutions.md` is at the repo root.
 3. Reply to the assessment email with the repository link.
 
-Good luck — and enjoy. This is genuinely the work we do every week.
+Good luck — and enjoy.
