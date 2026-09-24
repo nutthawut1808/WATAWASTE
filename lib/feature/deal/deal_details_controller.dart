@@ -17,8 +17,10 @@ class DealDetailsController extends GetxController {
     required this.analytics,
   });
 
-  late final DealModel deal;
-  Worker? _cartWorker; // 1. เพิ่มตัวแปรเก็บ Worker
+  // เปลี่ยนมาใช้ Rxn เพื่อรองรับการโหลดข้อมูลแบบ Asynchronous จาก Deep Link
+  final deal = Rxn<DealModel>();
+  final isLoading = true.obs;
+  Worker? _cartWorker;
 
   final _quantityLeft = RxnInt();
   int? get quantityLeft => _quantityLeft.value;
@@ -26,18 +28,46 @@ class DealDetailsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    deal = Get.arguments as DealModel;
-    _quantityLeft.value = deal.quantityLeft;
-    analytics.logEvent('deal_details_view', {
-      'deal_id': deal.id,
-      'source': Get.parameters['source'] ?? 'unknown',
-    });
-    
-    // 2. เก็บค่าที่ ever คืนมาลงในตัวแปร
+    _loadInitialData();
     _cartWorker = ever(cartService.itemCount, (_) => _recheckAvailability());
   }
 
-  // 3. เพิ่ม onClose เพื่อเคลียร์ Listener ตอนปิดหน้าจอ
+  Future<void> _loadInitialData() async {
+    isLoading.value = true;
+    try {
+      if (Get.arguments is DealModel) {
+        // กรณีเปิดจาก Home Feed (มี DealModel แนบมาด้วย)
+        final argDeal = Get.arguments as DealModel;
+        deal.value = argDeal;
+        _quantityLeft.value = argDeal.quantityLeft;
+        _logAnalytics(argDeal.id);
+      } else {
+        // กรณีเปิดจาก Deep Link (ไม่มี arguments ต้องดึง id จาก parameters มา fetch)
+        final idStr = Get.parameters['id'];
+        if (idStr != null) {
+          final id = int.tryParse(idStr);
+          if (id != null) {
+            final fetchedDeal = await dealRepo.fetchById(id);
+            deal.value = fetchedDeal;
+            _quantityLeft.value = fetchedDeal.quantityLeft;
+            _logAnalytics(fetchedDeal.id);
+          }
+        }
+      }
+    } catch (e) {
+      LogService.error('failed to load deal details', e);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  void _logAnalytics(int dealId) {
+    analytics.logEvent('deal_details_view', {
+      'deal_id': dealId,
+      'source': Get.parameters['source'] ?? 'unknown',
+    });
+  }
+
   @override
   void onClose() {
     _cartWorker?.dispose();
@@ -45,16 +75,26 @@ class DealDetailsController extends GetxController {
   }
 
   Future<void> _recheckAvailability() async {
-    LogService.log('re-checking availability for deal ${deal.id}');
-    final fresh = await dealRepo.fetchById(deal.id);
-    _quantityLeft.value = fresh.quantityLeft;
+    final currentDeal = deal.value;
+    if (currentDeal == null) return;
+
+    LogService.log('re-checking availability for deal ${currentDeal.id}');
+    try {
+      final fresh = await dealRepo.fetchById(currentDeal.id);
+      _quantityLeft.value = fresh.quantityLeft;
+    } catch (e) {
+      LogService.error('failed re-checking availability', e);
+    }
   }
 
   void addToCart() {
-    cartService.add(deal);
+    final currentDeal = deal.value;
+    if (currentDeal == null) return;
+
+    cartService.add(currentDeal);
     Get.snackbar(
       'Added to bag',
-      '${deal.name} — pick up ${deal.pickupWindow.label}',
+      '${currentDeal.name} — pick up ${currentDeal.pickupWindow.label}',
       snackPosition: SnackPosition.BOTTOM,
       duration: const Duration(seconds: 2),
     );
