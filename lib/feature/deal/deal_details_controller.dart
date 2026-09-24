@@ -18,6 +18,7 @@ class DealDetailsController extends GetxController {
   });
 
   late final DealModel deal;
+  Worker? _cartWorker; // 1. เพิ่มตัวแปรเก็บ Worker
 
   final _quantityLeft = RxnInt();
   int? get quantityLeft => _quantityLeft.value;
@@ -31,9 +32,16 @@ class DealDetailsController extends GetxController {
       'deal_id': deal.id,
       'source': Get.parameters['source'] ?? 'unknown',
     });
-    // Whenever the cart changes, re-check this deal's remaining stock so the
-    // details screen never shows stale availability.
-    ever(cartService.itemCount, (_) => _recheckAvailability());
+    
+    // 2. เก็บค่าที่ ever คืนมาลงในตัวแปร
+    _cartWorker = ever(cartService.itemCount, (_) => _recheckAvailability());
+  }
+
+  // 3. เพิ่ม onClose เพื่อเคลียร์ Listener ตอนปิดหน้าจอ
+  @override
+  void onClose() {
+    _cartWorker?.dispose();
+    super.onClose();
   }
 
   Future<void> _recheckAvailability() async {
